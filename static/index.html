@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>画像チェック</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <p class="eyebrow">esora</p>
+        <h1>画像チェック</h1>
+      </div>
+      <div class="session" id="session">確認中…</div>
+    </header>
+
+    <main>
+      <section class="panel composer">
+        <div class="drop" id="drop">
+          <input id="file" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
+          <p class="drop-title">画像をドロップ</p>
+          <p class="drop-copy">PNG / JPEG / WebP。文字切れ、誤字、余白、レイアウトの崩れを見ます。</p>
+          <button type="button" class="button secondary" id="browse">ファイルを選ぶ</button>
+        </div>
+
+        <label class="field">
+          <span>正しい表記・見てほしい点（任意）</span>
+          <textarea id="note" rows="4" placeholder="例: 見出しは「SAKAMOTO DAYS」。日付は 2026.10.15"></textarea>
+        </label>
+
+        <label class="field">
+          <span>モデル</span>
+          <select id="model"></select>
+        </label>
+
+        <div class="queue" id="queue" hidden></div>
+
+        <div class="actions">
+          <button type="button" class="button" id="check" disabled>チェックする</button>
+          <button type="button" class="button ghost" id="clear" disabled>クリア</button>
+        </div>
+        <p class="hint">画像は esora のライブラリに <code>image-check</code> タグで残ります。</p>
+      </section>
+
+      <section class="panel results" id="results">
+        <p class="empty">結果はここに出ます。</p>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
