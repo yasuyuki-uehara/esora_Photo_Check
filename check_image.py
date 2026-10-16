@@ -24,25 +24,28 @@ from esora_api_cli.http import ApiError, Client
 DEFAULT_MODEL = "gemini_3_5_flash_text"
 WAIT_SECONDS = 300.0
 
-CATEGORIES = ("文字切れ", "誤字", "余白", "レイアウト")
+CATEGORIES = ("文字切れ", "誤字", "余白", "レイアウト", "人体構造", "AIっぽさ", "差分")
 SEVERITIES = ("high", "medium", "low")
 
-PROMPT = """あなたは日本語のWeb画像（バナー、LP、告知、UIパーツ）の校正者です。渡された参照画像を見て、次の4種類だけを指摘してください。
+PROMPT = """あなたは日本語のWeb画像（バナー、LP、告知、UIパーツ、イラスト）の校正者です。渡された参照画像を見て、次の種類だけを指摘してください。
 
 - 文字切れ: 文字が枠や画像の端で切れている、欠けている、はみ出している
 - 誤字: 誤字、脱字、文字化け、不自然な日本語、指定された正しい表記との不一致
 - 余白: 文字や要素の間隔・余白が不揃い、詰まりすぎ、空きすぎ
-- レイアウト: 重なり、傾き、欠け、意図せず崩れた配置
+- レイアウト: 重なり、傾き、欠け、意図せず崩れた配置。全体を見て、絵として明らかに不自然なところがないかも見る
+- 人体構造: 指の本数や形、手足の関節、顔の左右、体の比率、髪や服のつながりなど、人体としておかしい部分
+- AIっぽさ: 生成AI特有の破綻。ぼやけた細部、溶けた指や手足、記憶にない文字、対称の崩れ、質感の不自然な混ざり、境界の溶けなど
 
 デザインの好みや改善案は書かない。画像から読み取れる事実だけを書く。同じ箇所を繰り返さない。問題がなければ findings は空配列にする。
 斜め配置、文字の重ね、画面端までの枠、文字数の違いによる段のずれは、装飾として組まれていれば指摘しない。文字が読めない、文字の一部が欠けている、明らかな誤字、不自然な空白があるときだけ指摘する。
+人物や体の一部が写っていない、または表現が簡略化されたデザインで構造を判断できない場合は、人体構造を無理に指摘しない。軽い生成感だけでは AIっぽさを出さず、はっきりした破綻だけを指摘する。
 
 次の形のJSONオブジェクトだけを返す。
 {
   "summary": "全体を一文で",
   "findings": [
     {
-      "category": "文字切れ" または "誤字" または "余白" または "レイアウト",
+      "category": "文字切れ" または "誤字" または "余白" または "レイアウト" または "人体構造" または "AIっぽさ" または "差分",
       "severity": "high" または "medium" または "low",
       "location": "画像のどこか",
       "detail": "何が問題か"
@@ -51,6 +54,11 @@ PROMPT = """あなたは日本語のWeb画像（バナー、LP、告知、UIパ�
 }
 
 severity は high=公開前に直すべき、medium=見た目に影響する、low=軽微。"""
+
+COMPARE_PROMPT = """
+1枚目が確認する画像、2枚目が正しい参考画像です。
+1枚目を2枚目と比べ、1枚目にだけある問題と、2枚目との違いを指摘してください。2枚目と同じ見た目は指摘しない。
+色、要素の有無、文言、図柄の違いで、上の分類に当てはまらないものは category を「差分」にする。"""
 
 
 class _Quiet:
@@ -68,7 +76,17 @@ def main() -> int:
 
     options = read_options()
     try:
-        result = check(image, note=options.get("note") or "", model=options.get("model") or "")
+        reference = options.get("reference") or ""
+        reference_path = Path(reference).expanduser() if reference else None
+        if reference_path is not None and not reference_path.is_file():
+            emit_error(f"No such reference image: {reference_path}", code="invalid")
+            return 1
+        result = check(
+            image,
+            note=options.get("note") or "",
+            model=options.get("model") or "",
+            reference=reference_path,
+        )
     except AuthError as exc:
         emit_error(str(exc) or "サインインが必要です。", code="auth")
         return 2
@@ -101,7 +119,7 @@ def read_options() -> dict[str, Any]:
     return parsed
 
 
-def check(image: Path, *, note: str, model: str) -> dict[str, Any]:
+def check(image: Path, *, note: str, model: str, reference: Path | None = None) -> dict[str, Any]:
     profile = resolve_profile()
     with Client(profile) as client:
         api = Api(client)
@@ -114,12 +132,23 @@ def check(image: Path, *, note: str, model: str) -> dict[str, Any]:
             tags=["image-check"],
             kinds={"image"},
         )
+        asset_ids = [uploaded["asset_id"]]
+        if reference is not None:
+            compared = _upload_file(
+                api,
+                reference,
+                _Quiet(),
+                name=reference.name,
+                tags=["image-check", "reference"],
+                kinds={"image"},
+            )
+            asset_ids.append(compared["asset_id"])
         record = api.create_generation(
             {
                 "type": "text",
                 "model": chosen,
-                "prompt": build_prompt(note),
-                "reference_asset_ids": [uploaded["asset_id"]],
+                "prompt": build_prompt(note, compared=reference is not None),
+                "reference_asset_ids": asset_ids,
                 "response_format": {"type": "json_object"},
                 "temperature": 0.2,
                 "max_output_tokens": 4096,
@@ -137,6 +166,7 @@ def check(image: Path, *, note: str, model: str) -> dict[str, Any]:
             "findings": findings,
             "model": record.get("model") or chosen,
             "generation_id": record.get("id"),
+            "compared": reference is not None,
         }
 
 
@@ -158,17 +188,18 @@ def choose_model(api: Api, requested: str) -> str:
     return str(models[0]["id"])
 
 
-def build_prompt(note: str) -> str:
+def build_prompt(note: str, *, compared: bool = False) -> str:
+    parts = [PROMPT]
+    if compared:
+        parts.append(COMPARE_PROMPT.strip())
     extra = note.strip()
-    if not extra:
-        return PROMPT
-    clipped = extra[:2000]
-    return (
-        PROMPT
-        + "\n\n確認してほしい正しい表記や注意点:\n"
-        + clipped
-        + "\nこの内容と画像内の文字が違えば、誤字として指摘する。"
-    )
+    if extra:
+        parts.append(
+            "追加で確認する項目:\n"
+            + extra[:2000]
+            + "\nこの項目も見て、問題があれば指摘する。表記の指定があれば、画像内の文字との違いを誤字とする。パースのように上の分類に入らない問題は category を「差分」にする。"
+        )
+    return "\n\n".join(parts)
 
 
 def parse_result(result: Any) -> tuple[str, list[dict[str, str]]]:
@@ -209,6 +240,15 @@ def normalize_finding(entry: Any) -> dict[str, str] | None:
     if not detail and not location:
         return None
     category = str(entry.get("category") or "").strip()
+    aliases = {
+        "人体": "人体構造",
+        "人体的構造": "人体構造",
+        "解剖": "人体構造",
+        "AI": "AIっぽさ",
+        "AI感": "AIっぽさ",
+        "生成AI": "AIっぽさ",
+    }
+    category = aliases.get(category, category)
     if category not in CATEGORIES:
         category = "レイアウト"
     severity = str(entry.get("severity") or "medium").strip().lower()

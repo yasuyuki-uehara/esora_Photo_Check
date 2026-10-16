@@ -80,6 +80,9 @@ main {
   background: #fff7ed;
 }
 
+.reference-drop { margin-top: 12px; padding: 18px; }
+.reference-picked { border: 0; padding: 0; text-align: left; }
+
 .drop-title { margin: 0; font-size: 18px; font-weight: 650; }
 .drop-copy { margin: 8px 0 16px; color: var(--muted); font-size: 13px; }
 
@@ -144,6 +147,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 .result:first-child { padding-top: 0; }
 .result:last-child { border-bottom: 0; padding-bottom: 0; }
 .result img { width: 100%; border-radius: 10px; background: #f3f0eb; }
+.result.compared { grid-template-columns: 1fr 1fr; }
+.result.compared .body { grid-column: 1 / -1; }
+.shot { margin: 0; }
+.shot figcaption { margin-top: 4px; color: var(--muted); font-size: 12px; }
 .result h2 { margin: 0 0 6px; font-size: 16px; }
 .summary { margin: 0 0 12px; }
 .findings { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
@@ -166,6 +173,6 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 
 @media (max-width: 860px) {
   .top, main { padding-left: 16px; padding-right: 16px; }
-  main, .result { grid-template-columns: 1fr; }
+  main, .result, .result.compared { grid-template-columns: 1fr; }
   .session { text-align: left; }
 }

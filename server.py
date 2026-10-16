@@ -21,7 +21,7 @@ PORT = 8765
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 CHECK_SCRIPT = ROOT / "check_image.py"
-MAX_BODY = 40 * 1024 * 1024
+MAX_BODY = 80 * 1024 * 1024
 MAX_IMAGE = 25 * 1024 * 1024
 ALLOWED_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
@@ -149,7 +149,12 @@ class Handler(BaseHTTPRequestHandler):
         note = payload.get("note") if isinstance(payload.get("note"), str) else ""
         model = payload.get("model") if isinstance(payload.get("model"), str) else ""
         try:
-            result = review_image(raw, suffix, note=note, model=model)
+            reference = optional_image(payload, "reference_mime", "reference_base64")
+        except ValueError as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+            return
+        try:
+            result = review_image(raw, suffix, note=note, model=model, reference=reference)
         except subprocess.TimeoutExpired:
             self.send_json(504, {"ok": False, "error": "確認がタイムアウトしました。時間をおいて再度お試しください。"})
             return
@@ -201,14 +206,20 @@ class Handler(BaseHTTPRequestHandler):
         print(f"[{self.log_date_time_string()}] {fmt % args}")
 
 
-def review_image(raw: bytes, suffix: str, *, note: str, model: str) -> dict:
+def review_image(raw: bytes, suffix: str, *, note: str, model: str, reference: tuple[bytes, str] | None = None) -> dict:
     python = esora_python()
     with tempfile.TemporaryDirectory(prefix="image-check-") as directory:
         image = Path(directory) / f"upload{suffix}"
         image.write_bytes(raw)
+        options = {"note": note, "model": model}
+        if reference is not None:
+            reference_bytes, reference_suffix = reference
+            reference_path = Path(directory) / f"reference{reference_suffix}"
+            reference_path.write_bytes(reference_bytes)
+            options["reference"] = str(reference_path)
         completed = subprocess.run(
             [str(python), str(CHECK_SCRIPT), str(image)],
-            input=json.dumps({"note": note, "model": model}, ensure_ascii=False),
+            input=json.dumps(options, ensure_ascii=False),
             capture_output=True,
             text=True,
             timeout=360,
@@ -221,6 +232,20 @@ def review_image(raw: bytes, suffix: str, *, note: str, model: str) -> dict:
         message = cli_error(completed) or "確認結果を読めませんでした。"
         return {"ok": False, "error": message, "code": "invalid"}
     return payload
+
+
+def optional_image(payload: dict, mime_key: str, data_key: str) -> tuple[bytes, str] | None:
+    mime = payload.get(mime_key) or ""
+    encoded = payload.get(data_key) or ""
+    if not mime and not encoded:
+        return None
+    suffix = ALLOWED_TYPES.get(str(mime))
+    if suffix is None or not isinstance(encoded, str) or not encoded:
+        raise ValueError("参考画像は PNG、JPEG、WebP にしてください。")
+    raw = decode_base64(encoded)
+    if len(raw) > MAX_IMAGE:
+        raise ValueError("参考画像は 25MB 以下にしてください。")
+    return raw, suffix
 
 
 def decode_base64(value: str) -> bytes:

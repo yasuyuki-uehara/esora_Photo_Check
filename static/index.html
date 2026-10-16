@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>画像チェック</title>
+    <title>AI生成画像基本チェック</title>
     <link rel="stylesheet" href="/app.css" />
   </head>
   <body>
     <header class="top">
       <div>
         <p class="eyebrow">esora</p>
-        <h1>画像チェック</h1>
+        <h1>AI生成画像基本チェック</h1>
       </div>
       <div class="session" id="session">確認中…</div>
     </header>
@@ -20,13 +20,30 @@
         <div class="drop" id="drop">
           <input id="file" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
           <p class="drop-title">画像をドロップ</p>
-          <p class="drop-copy">PNG / JPEG / WebP。文字切れ、誤字、余白、レイアウトの崩れを見ます。</p>
+          <p class="drop-copy">PNG / JPEG / WebP。文字切れ、誤字、余白、レイアウト、人体構造、AIっぽさを見ます。</p>
           <button type="button" class="button secondary" id="browse">ファイルを選ぶ</button>
+        </div>
+
+        <div class="drop reference-drop" id="reference-drop">
+          <input id="reference-file" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+          <div id="reference-empty">
+            <p class="drop-title">参考画像（任意）</p>
+            <p class="drop-copy">正解やカンプを置くと、確認画像との違いを指摘します。</p>
+            <button type="button" class="button secondary" id="reference-browse">参考画像を選ぶ</button>
+          </div>
+          <div class="queue-item reference-picked" id="reference-picked" hidden>
+            <img id="reference-preview" alt="" />
+            <div>
+              <p class="name" id="reference-name"></p>
+              <p class="meta" id="reference-meta"></p>
+            </div>
+            <button type="button" class="icon-button" id="reference-clear">外す</button>
+          </div>
         </div>
 
         <label class="field">
           <span>正しい表記・見てほしい点（任意）</span>
-          <textarea id="note" rows="4" placeholder="例: 見出しは「SAKAMOTO DAYS」。日付は 2026.10.15"></textarea>
+          <textarea id="note" rows="6" placeholder="・パースにおかしいところはないか&#10;・参考画像と大きく違いはないか&#10;・人体構造&#10;等"></textarea>
         </label>
 
         <label class="field">

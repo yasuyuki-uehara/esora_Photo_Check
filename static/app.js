@@ -8,9 +8,38 @@ const checkButton = document.querySelector("#check");
 const clearButton = document.querySelector("#clear");
 const results = document.querySelector("#results");
 const session = document.querySelector("#session");
+const referenceDrop = document.querySelector("#reference-drop");
+const referenceInput = document.querySelector("#reference-file");
+const referenceBrowse = document.querySelector("#reference-browse");
+const referenceEmpty = document.querySelector("#reference-empty");
+const referencePicked = document.querySelector("#reference-picked");
+const referencePreview = document.querySelector("#reference-preview");
+const referenceName = document.querySelector("#reference-name");
+const referenceMeta = document.querySelector("#reference-meta");
+const referenceClear = document.querySelector("#reference-clear");
 
 const items = [];
+let reference = null;
 let busy = false;
+
+referenceBrowse.addEventListener("click", () => referenceInput.click());
+referenceClear.addEventListener("click", clearReference);
+referenceInput.addEventListener("change", () => {
+  const file = referenceInput.files && referenceInput.files[0];
+  if (file) setReference(file);
+  referenceInput.value = "";
+});
+referenceDrop.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  referenceDrop.classList.add("over");
+});
+referenceDrop.addEventListener("dragleave", () => referenceDrop.classList.remove("over"));
+referenceDrop.addEventListener("drop", (event) => {
+  event.preventDefault();
+  referenceDrop.classList.remove("over");
+  const file = [...(event.dataTransfer.files || [])].find((item) => isImage(item));
+  if (file) setReference(file);
+});
 
 browse.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => addFiles(fileInput.files));
@@ -30,9 +59,33 @@ clearButton.addEventListener("click", clearAll);
 loadSession();
 loadModels();
 
+function isImage(file) {
+  return ["image/png", "image/jpeg", "image/webp"].includes(file.type);
+}
+
+function setReference(file) {
+  if (!isImage(file)) return;
+  if (reference) URL.revokeObjectURL(reference.url);
+  reference = { file, url: URL.createObjectURL(file) };
+  referencePreview.src = reference.url;
+  referenceName.textContent = file.name;
+  referenceMeta.textContent = formatSize(file.size);
+  referenceEmpty.hidden = true;
+  referencePicked.hidden = false;
+}
+
+function clearReference() {
+  if (!reference) return;
+  URL.revokeObjectURL(reference.url);
+  reference = null;
+  referencePreview.removeAttribute("src");
+  referenceEmpty.hidden = false;
+  referencePicked.hidden = true;
+}
+
 function addFiles(list) {
   for (const file of list || []) {
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) continue;
+    if (!isImage(file)) continue;
     items.push({
       id: crypto.randomUUID(),
       file,
@@ -94,34 +147,40 @@ async function runChecks() {
   busy = true;
   renderQueue();
   const batch = items.slice();
+  const compared = reference;
   results.replaceChildren();
   for (const item of batch) {
-    const card = renderCard(item, { state: "pending" });
+    const card = renderCard(item, { state: "pending", reference: compared });
     results.append(card);
     card.scrollIntoView({ block: "nearest" });
     try {
-      const body = await review(item.file);
-      renderCard(item, body.ok ? { state: "done", body } : { state: "error", message: body.error || "確認に失敗しました。" }, card);
+      const body = await review(item.file, compared);
+      renderCard(item, body.ok ? { state: "done", body, reference: compared } : { state: "error", message: body.error || "確認に失敗しました。", reference: compared }, card);
     } catch (error) {
-      renderCard(item, { state: "error", message: error.message || "確認に失敗しました。" }, card);
+      renderCard(item, { state: "error", message: error.message || "確認に失敗しました。", reference: compared }, card);
     }
   }
   busy = false;
   renderQueue();
 }
 
-async function review(file) {
+async function review(file, compared) {
   const data = await fileToBase64(file);
+  const request = {
+    filename: file.name,
+    mime: file.type,
+    note: note.value,
+    model: modelSelect.value,
+    data_base64: data,
+  };
+  if (compared) {
+    request.reference_mime = compared.file.type;
+    request.reference_base64 = await fileToBase64(compared.file);
+  }
   const response = await fetch("/api/check", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      filename: file.name,
-      mime: file.type,
-      note: note.value,
-      model: modelSelect.value,
-      data_base64: data,
-    }),
+    body: JSON.stringify(request),
   });
   const payload = await response.json().catch(() => ({}));
   if (response.status === 401) await loadSession();
@@ -133,12 +192,13 @@ async function review(file) {
 
 function renderCard(item, view, existing) {
   const card = existing || document.createElement("article");
-  card.className = "result";
+  const compared = view.reference;
+  card.className = compared ? "result compared" : "result";
   card.replaceChildren();
-  const image = document.createElement("img");
-  image.src = item.url;
-  image.alt = item.file.name;
+  card.append(shot(item.url, item.file.name, compared ? "確認画像" : ""));
+  if (compared) card.append(shot(compared.url, compared.file.name, "参考画像"));
   const body = document.createElement("div");
+  body.className = "body";
   const title = document.createElement("h2");
   title.textContent = item.file.name;
   body.append(title);
@@ -181,8 +241,26 @@ function renderCard(item, view, existing) {
       body.append(list);
     }
   }
-  card.append(image, body);
+  card.append(body);
   return card;
+}
+
+function shot(url, name, caption) {
+  if (!caption) {
+    const image = document.createElement("img");
+    image.src = url;
+    image.alt = name;
+    return image;
+  }
+  const figure = document.createElement("figure");
+  figure.className = "shot";
+  const image = document.createElement("img");
+  image.src = url;
+  image.alt = name;
+  const label = document.createElement("figcaption");
+  label.textContent = caption;
+  figure.append(image, label);
+  return figure;
 }
 
 function emptyState() {
