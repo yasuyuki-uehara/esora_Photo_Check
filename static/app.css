@@ -87,9 +87,14 @@ main {
 .drop-copy { margin: 8px 0 16px; color: var(--muted); font-size: 13px; }
 
 .field { display: block; margin-top: 16px; }
-.field span { display: block; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
+.field > span, .field > legend {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
 
-textarea, select {
+select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -99,7 +104,35 @@ textarea, select {
   padding: 10px 12px;
 }
 
-textarea { resize: vertical; }
+.checks {
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+}
+.checks legend {
+  padding: 0;
+}
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 6px 0;
+  cursor: pointer;
+}
+.check input {
+  margin: 3px 0 0;
+  flex: 0 0 auto;
+}
+.check span {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+}
+.check-children {
+  margin: 0 0 8px 22px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
 
 .queue { display: grid; gap: 8px; margin-top: 16px; }
 .queue-item {
@@ -138,17 +171,27 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 .empty { margin: 48px 0; color: var(--muted); text-align: center; }
 
 .result {
-  display: grid;
-  grid-template-columns: minmax(160px, 280px) minmax(0, 1fr);
-  gap: 16px;
-  padding: 14px 0;
+  display: block;
+  padding: 14px 0 22px;
   border-bottom: 1px solid var(--line);
 }
 .result:first-child { padding-top: 0; }
 .result:last-child { border-bottom: 0; padding-bottom: 0; }
 .result img { width: 100%; border-radius: 10px; background: #f3f0eb; }
-.result.compared { grid-template-columns: 1fr 1fr; }
-.result.compared .body { grid-column: 1 / -1; }
+.result-media { margin: 0 0 14px; }
+.result-media.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.result-media > img { max-width: 520px; }
+.redline-holder { color: var(--muted); }
+.redline-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.save-redline { margin-top: 10px; }
+.reference-shot { margin-top: 12px; max-width: 240px; }
 .shot { margin: 0; }
 .shot figcaption { margin-top: 4px; color: var(--muted); font-size: 12px; }
 .result h2 { margin: 0 0 6px; font-size: 16px; }
@@ -168,11 +211,35 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 .finding.low .tag { color: var(--low); }
 .finding p { margin: 2px 0 0; }
 .error-text { color: var(--high); }
+.warning-text { margin: 0 0 12px; color: var(--medium); font-size: 13px; }
 .ok { color: var(--ok); font-weight: 650; }
 .pending { color: var(--muted); }
 
+.redo-banner {
+  margin: 0 0 14px;
+  padding: 18px 16px;
+  border: 3px solid var(--high);
+  border-radius: 12px;
+  background: #fef2f2;
+  text-align: center;
+}
+.redo-title {
+  margin: 0;
+  color: var(--high);
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+.redo-copy {
+  margin: 8px 0 0;
+  color: var(--high);
+  font-size: 15px;
+  font-weight: 650;
+}
+
 @media (max-width: 860px) {
   .top, main { padding-left: 16px; padding-right: 16px; }
-  main, .result, .result.compared { grid-template-columns: 1fr; }
+  main, .result-media.pair { grid-template-columns: 1fr; }
   .session { text-align: left; }
 }

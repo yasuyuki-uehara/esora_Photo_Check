@@ -28,7 +28,7 @@
           <input id="reference-file" type="file" accept="image/png,image/jpeg,image/webp" hidden />
           <div id="reference-empty">
             <p class="drop-title">参考画像（任意）</p>
-            <p class="drop-copy">正解やカンプを置くと、色（色コード）や数（ボタン・紐など）の違いも指摘します。</p>
+            <p class="drop-copy">正解やカンプを置くと、色（色コード）、数（ボタン・紐など）、衣装（靴・ベルトなど）の違いも指摘します。</p>
             <button type="button" class="button secondary" id="reference-browse">参考画像を選ぶ</button>
           </div>
           <div class="queue-item reference-picked" id="reference-picked" hidden>
@@ -41,10 +41,55 @@
           </div>
         </div>
 
-        <label class="field">
-          <span>正しい表記・見てほしい点（任意）</span>
-          <textarea id="note" rows="6" placeholder="・パースにおかしいところはないか&#10;・参考画像と大きく違いはないか&#10;・人体構造&#10;等"></textarea>
-        </label>
+        <fieldset class="field checks" id="focus-checks">
+          <legend>見てほしい点（任意）</legend>
+          <label class="check">
+            <input type="checkbox" data-role="all" />
+            <span>以下全部</span>
+          </label>
+
+          <label class="check">
+            <input type="checkbox" data-role="group" data-group="body" />
+            <span>人体の構造</span>
+          </label>
+          <div class="check-children" data-children="body">
+            <label class="check">
+              <input type="checkbox" data-role="item" data-group="body" data-label="指の本数（多い、少ない）" />
+              <span>指の本数（多い、少ない）</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" data-role="item" data-group="body" data-label="肌の色" />
+              <span>肌の色</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" data-role="item" data-group="body" data-label="髪の毛" />
+              <span>髪の毛</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" data-role="item" data-group="body" data-label="髪の毛の生え方" />
+              <span>髪の毛の生え方</span>
+            </label>
+          </div>
+
+          <label class="check">
+            <input type="checkbox" data-role="group" data-group="deco" />
+            <span>装飾のチェック</span>
+          </label>
+          <div class="check-children" data-children="deco">
+            <label class="check">
+              <input type="checkbox" data-role="item" data-group="deco" data-label="服の色" />
+              <span>服の色</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" data-role="item" data-group="deco" data-label="装飾のデザイン" />
+              <span>装飾のデザイン</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" data-role="item" data-group="deco" data-label="パース" />
+              <span>パース</span>
+            </label>
+          </div>
+        </fieldset>
 
         <label class="field">
           <span>モデル</span>
@@ -64,6 +109,7 @@
         <p class="empty">結果はここに出ます。</p>
       </section>
     </main>
+    <script src="/redline.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

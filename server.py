@@ -166,7 +166,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(status, result)
 
     def serve_static(self, path: str) -> None:
-        name = { "/": "index.html", "/index.html": "index.html", "/app.css": "app.css", "/app.js": "app.js" }.get(path)
+        name = {
+            "/": "index.html",
+            "/index.html": "index.html",
+            "/app.css": "app.css",
+            "/app.js": "app.js",
+            "/redline.js": "redline.js",
+        }.get(path)
         if name is None:
             self.send_error(404)
             return

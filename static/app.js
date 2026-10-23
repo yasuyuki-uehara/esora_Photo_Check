@@ -1,7 +1,7 @@
 const drop = document.querySelector("#drop");
 const fileInput = document.querySelector("#file");
 const browse = document.querySelector("#browse");
-const note = document.querySelector("#note");
+const focusChecks = document.querySelector("#focus-checks");
 const modelSelect = document.querySelector("#model");
 const queue = document.querySelector("#queue");
 const checkButton = document.querySelector("#check");
@@ -41,6 +41,25 @@ referenceDrop.addEventListener("drop", (event) => {
   if (file) setReference(file);
 });
 
+focusChecks.addEventListener("change", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || input.type !== "checkbox") return;
+  const role = input.dataset.role;
+  if (role === "all") {
+    setAllChecks(input.checked);
+    return;
+  }
+  if (role === "group") {
+    setGroupChecks(input.dataset.group, input.checked);
+    syncAllCheck();
+    return;
+  }
+  if (role === "item") {
+    syncGroupCheck(input.dataset.group);
+    syncAllCheck();
+  }
+});
+
 browse.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => addFiles(fileInput.files));
 drop.addEventListener("dragover", (event) => {
@@ -61,6 +80,54 @@ loadModels();
 
 function isImage(file) {
   return ["image/png", "image/jpeg", "image/webp"].includes(file.type);
+}
+
+function checkboxes(selector) {
+  return [...focusChecks.querySelectorAll(selector)];
+}
+
+function setAllChecks(checked) {
+  for (const input of checkboxes('input[type="checkbox"]')) input.checked = checked;
+}
+
+function setGroupChecks(group, checked) {
+  for (const input of checkboxes(`input[data-group="${group}"]`)) input.checked = checked;
+}
+
+function syncGroupCheck(group) {
+  const items = checkboxes(`input[data-role="item"][data-group="${group}"]`);
+  const parent = focusChecks.querySelector(`input[data-role="group"][data-group="${group}"]`);
+  if (!parent || !items.length) return;
+  parent.checked = items.every((input) => input.checked);
+}
+
+function syncAllCheck() {
+  const all = focusChecks.querySelector('input[data-role="all"]');
+  const others = checkboxes('input[type="checkbox"]:not([data-role="all"])');
+  if (!all || !others.length) return;
+  all.checked = others.every((input) => input.checked);
+}
+
+function selectedFocusNote() {
+  const lines = [];
+  const bodyItems = checkboxes('input[data-role="item"][data-group="body"]:checked').map((input) => input.dataset.label);
+  const decoItems = checkboxes('input[data-role="item"][data-group="deco"]:checked').map((input) => input.dataset.label);
+  const bodyGroup = focusChecks.querySelector('input[data-role="group"][data-group="body"]');
+  const decoGroup = focusChecks.querySelector('input[data-role="group"][data-group="deco"]');
+  if (bodyGroup && bodyGroup.checked) {
+    lines.push("人体の構造を細かく確認する");
+  }
+  for (const label of bodyItems) lines.push(`・${label}`);
+  if (decoGroup && decoGroup.checked) {
+    lines.push("装飾のチェックを細かく確認する");
+  }
+  for (const label of decoItems) lines.push(`・${label}`);
+  if (!lines.length) return "";
+  return (
+    "次の項目を特に注意して確認する。問題があれば必ず指摘する。\n" +
+    lines.join("\n") +
+    "\n服の色や装飾のデザインの違いは差分、パースの崩れはレイアウトか差分として出す。"
+  );
 }
 
 function setReference(file) {
@@ -169,7 +236,7 @@ async function review(file, compared) {
   const request = {
     filename: file.name,
     mime: file.type,
-    note: note.value,
+    note: selectedFocusNote(),
     model: modelSelect.value,
     data_base64: data,
   };
@@ -195,13 +262,14 @@ function renderCard(item, view, existing) {
   const compared = view.reference;
   card.className = compared ? "result compared" : "result";
   card.replaceChildren();
-  card.append(shot(item.url, item.file.name, compared ? "確認画像" : ""));
-  if (compared) card.append(shot(compared.url, compared.file.name, "参考画像"));
   const body = document.createElement("div");
   body.className = "body";
   const title = document.createElement("h2");
   title.textContent = item.file.name;
   body.append(title);
+  const media = document.createElement("div");
+  fillMedia(media, item, view);
+  body.append(media);
 
   if (view.state === "pending") {
     const pending = document.createElement("p");
@@ -218,7 +286,26 @@ function renderCard(item, view, existing) {
     summary.className = "summary";
     summary.textContent = view.body.summary || "";
     body.append(summary);
+    if (view.body.warning) {
+      const warning = document.createElement("p");
+      warning.className = "warning-text";
+      warning.textContent = view.body.warning;
+      body.append(warning);
+    }
     const findings = view.body.findings || [];
+    if (findings.length >= 20) {
+      const redo = document.createElement("div");
+      redo.className = "redo-banner";
+      redo.setAttribute("role", "alert");
+      const redoTitle = document.createElement("p");
+      redoTitle.className = "redo-title";
+      redoTitle.textContent = "やりなおせーーーー！！";
+      const redoCopy = document.createElement("p");
+      redoCopy.className = "redo-copy";
+      redoCopy.textContent = `チェックNGが ${findings.length} 件あります。`;
+      redo.append(redoTitle, redoCopy);
+      body.append(redo);
+    }
     if (!findings.length) {
       const ok = document.createElement("p");
       ok.className = "ok";
@@ -243,6 +330,52 @@ function renderCard(item, view, existing) {
   }
   card.append(body);
   return card;
+}
+
+// Pending, failed and clean results show the plain image(s). A result with
+// findings shows the image marked up in red, with the reference beside it.
+function fillMedia(media, item, view) {
+  const compared = view.reference;
+  const findings = view.state === "done" ? view.body.findings || [] : [];
+  media.replaceChildren();
+  if (!findings.length) {
+    media.className = compared ? "result-media pair" : "result-media";
+    media.append(shot(item.url, item.file.name, compared ? "確認画像" : ""));
+    if (compared) media.append(shot(compared.url, compared.file.name, "参考画像"));
+    return;
+  }
+
+  media.className = "result-media redline";
+  const holder = document.createElement("div");
+  holder.className = "redline-holder";
+  holder.textContent = "赤入れ画像を作っています…";
+  media.append(holder);
+  if (compared) {
+    const figure = shot(compared.url, compared.file.name, "参考画像");
+    figure.classList.add("reference-shot");
+    media.append(figure);
+  }
+
+  renderRedline(item.url, findings)
+    .then((canvas) => {
+      canvas.className = "redline-canvas";
+      canvas.setAttribute("role", "img");
+      canvas.setAttribute("aria-label", `${item.file.name} の赤入れ画像（指摘 ${findings.length} 件）`);
+      const save = document.createElement("button");
+      save.type = "button";
+      save.className = "button secondary save-redline";
+      save.textContent = "赤入れ画像を保存";
+      save.addEventListener("click", () => downloadCanvas(canvas, `${baseName(item.file.name)}_赤入れ.png`));
+      holder.replaceChildren(canvas, save);
+    })
+    .catch(() => {
+      holder.replaceChildren(shot(item.url, item.file.name, ""));
+    });
+}
+
+function baseName(name) {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(0, dot) : name;
 }
 
 function shot(url, name, caption) {
