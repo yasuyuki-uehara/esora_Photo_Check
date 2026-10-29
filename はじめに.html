@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AICKtool のはじめかた</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
+    max-width: 760px; margin: 32px auto; padding: 0 20px; line-height: 1.8; font-size: 17px;
+  }
+  h1 { font-size: 28px; margin-bottom: 4px; }
+  .lead { color: #666; margin-top: 0; }
+  .note { background: #fff8e1; border-left: 6px solid #f5a623; padding: 12px 16px; border-radius: 6px; color: #333; }
+  .step { display: flex; gap: 16px; margin: 28px 0; align-items: flex-start; }
+  .num {
+    flex: none; width: 44px; height: 44px; border-radius: 50%;
+    background: #2f6fed; color: #fff; font-weight: 700; font-size: 22px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .body { flex: 1; }
+  .body h2 { font-size: 20px; margin: 4px 0 6px; }
+  .key { background: #eee; color: #222; border: 1px solid #ccc; border-bottom-width: 3px; border-radius: 6px; padding: 1px 8px; font-weight: 600; white-space: nowrap; }
+  .btn { background: #2f6fed; color: #fff; border-radius: 6px; padding: 1px 10px; font-weight: 600; white-space: nowrap; }
+  .ng { background: #fde8e8; color: #b42318; border-radius: 6px; padding: 1px 10px; font-weight: 600; white-space: nowrap; }
+  .open-settings { display: inline-block; margin-top: 8px; background: #2f6fed; color: #fff; text-decoration: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; }
+  .small { color: #666; font-size: 15px; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 36px 0; }
+  @media (prefers-color-scheme: dark) {
+    .lead, .small { color: #aaa; }
+    .key { background: #333; color: #eee; border-color: #555; }
+    .note { background: #3a3220; color: #eee; }
+    .ng { background: #4a2020; color: #ffb4b4; }
+  }
+</style>
+</head>
+<body>
+
+<h1>AICKtool のはじめかた</h1>
+<p class="lead">AI生成画像基本チェック。初回だけ、次の手順で開きます（2回目からは、ダブルクリックだけです）。</p>
+
+<p class="note">
+  ダウンロードしたファイルは、macOS が念のため止めます。<b>壊れているわけではありません。</b><br>
+  初回だけ、「システム設定」で「このまま開く」を押すと、使えるようになります。
+</p>
+
+<div class="step">
+  <div class="num">1</div>
+  <div class="body">
+    <h2>「AICKtool.command」をダブルクリック</h2>
+    このフォルダの中の、アイコン付きの <b>AICKtool.command</b> です。<br>
+    警告が出ます（「開いていません」「マルウェアを検証できませんでした」）。<br>
+    <b><span class="btn">完了</span> を押してください。</b>
+    <span class="ng">ゴミ箱に入れる</span> は押さないでください。
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">2</div>
+  <div class="body">
+    <h2>「システム設定」を開く</h2>
+    次のボタンを押すと、システム設定が開きます。<br>
+    <a class="open-settings" href="x-apple.systempreferences:com.apple.preference.security">システム設定を開く</a><br>
+    <span class="small">（ボタンで開かないときは、画面の左上の  →「システム設定」を選びます）</span>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">3</div>
+  <div class="body">
+    <h2>「プライバシーとセキュリティ」を選ぶ</h2>
+    左の一覧から <b>プライバシーとセキュリティ</b> を選び、右側を<b>いちばん下まで</b>スクロールします。<br>
+    「セキュリティ」の欄に、<b>「"AICKtool.command"はブロックされました」</b>と出ています。
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">4</div>
+  <div class="body">
+    <h2><span class="btn">このまま開く</span> を押す</h2>
+    パスワード（または Touch ID）を聞かれたら、Mac を使うときのパスワードを入れます。<br>
+    もう一度確認が出たら、<span class="btn">開く</span> を押します。
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">5</div>
+  <div class="body">
+    <h2>黒いウィンドウが開いたら、少し待つ</h2>
+    初回だけ、必要なものを入れるために数分かかります。<br>
+    「esora-api をインストールしますか？」と出たら、<span class="key">Enter</span> を押します
+    （<b>社内ネットワークか VPN につないでおいてください</b>）。<br>
+    終わると、ブラウザが自動で開きます。右上の「サインイン」から、Google でサインインします。
+  </div>
+</div>
+
+<hr>
+
+<h2>2回目から</h2>
+<p>
+  「AICKtool.command」を<b>ダブルクリックするだけ</b>です。警告は出ません。<br>
+  使い終わったら、黒いウィンドウを閉じます。
+</p>
+
+<h2>困ったとき</h2>
+<ul>
+  <li><b>手順4の「このまま開く」が出ない</b><br>
+    手順1をもう一度行ってください（ダブルクリックして、警告を出してから「完了」）。
+    そのあと、システム設定を開き直します。</li>
+  <li><b>「ゴミ箱に入れる」を押してしまった</b><br>
+    ダウンロードした ZIP から、もう一度解凍してください。</li>
+  <li><b>インストールできない</b><br>
+    社内ネットワークか VPN につながっているか、確認してください。</li>
+  <li><b>サインインできない</b><br>
+    VPN につないでから、もう一度お試しください。</li>
+</ul>
+
+</body>
+</html>
