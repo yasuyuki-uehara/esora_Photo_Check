@@ -38,10 +38,22 @@ say "=== AI生成画像基本チェック ==="
 say ""
 
 # 1. すでに起動していれば、ブラウザを開くだけ。
+#    ただし、画面（/）を返せない古いサーバーが残っていることがある
+#    （フォルダを移した・更新した後など）。その場合は止めて、起動し直す。
 if curl -fs -m 2 "${URL}api/status" >/dev/null 2>&1; then
-  say "すでに起動しています。ブラウザを開きます: $URL"
-  open_browser
-  exit 0
+  if curl -fs -m 3 "$URL" >/dev/null 2>&1; then
+    say "すでに起動しています。ブラウザを開きます: $URL"
+    open_browser
+    exit 0
+  fi
+  say "古いサーバーが残っていたので、止めて起動し直します。"
+  for pid in $(lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null); do
+    kill "$pid" 2>/dev/null || true
+  done
+  for _ in $(seq 1 10); do
+    curl -fs -m 1 "${URL}api/status" >/dev/null 2>&1 || break
+    sleep 0.5
+  done
 fi
 
 # 2. python3（Mac に入っているもの）。
