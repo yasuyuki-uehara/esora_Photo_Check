@@ -20,6 +20,11 @@ const referenceName = document.querySelector("#reference-name");
 const referenceMeta = document.querySelector("#reference-meta");
 const referenceClear = document.querySelector("#reference-clear");
 
+// Every finding is one red mark on the image. This many or more and the picture
+// is not worth patching.
+const REDO_THRESHOLD = 5;
+const REDO_MESSAGE = "これはアカーーん！！作り直してください！！";
+
 const items = [];
 // Result cards currently on screen, so ticking the checklist can redraw their marks.
 const shown = new Map();
@@ -266,16 +271,16 @@ function renderCard(item, view, existing) {
       body.append(warning);
     }
     const findings = view.body.findings || [];
-    if (findings.length >= 20) {
+    if (findings.length >= REDO_THRESHOLD) {
       const redo = document.createElement("div");
       redo.className = "redo-banner";
       redo.setAttribute("role", "alert");
       const redoTitle = document.createElement("p");
       redoTitle.className = "redo-title";
-      redoTitle.textContent = "やりなおせーーーー！！";
+      redoTitle.textContent = REDO_MESSAGE;
       const redoCopy = document.createElement("p");
       redoCopy.className = "redo-copy";
-      redoCopy.textContent = `チェックNGが ${findings.length} 件あります。`;
+      redoCopy.textContent = `赤入れが ${findings.length} 箇所あります。`;
       redo.append(redoTitle, redoCopy);
       body.append(redo);
     }

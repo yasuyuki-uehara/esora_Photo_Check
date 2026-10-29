@@ -282,7 +282,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
   font-size: clamp(28px, 5vw, 44px);
   font-weight: 800;
   letter-spacing: 0.04em;
-  line-height: 1.2;
+  line-height: 1.25;
+  text-wrap: balance;
 }
 .redo-copy {
   margin: 8px 0 0;
