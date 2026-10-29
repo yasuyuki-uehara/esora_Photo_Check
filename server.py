@@ -172,6 +172,7 @@ class Handler(BaseHTTPRequestHandler):
             "/app.css": "app.css",
             "/app.js": "app.js",
             "/redline.js": "redline.js",
+            "/checklist.js": "checklist.js",
         }.get(path)
         if name is None:
             self.send_error(404)

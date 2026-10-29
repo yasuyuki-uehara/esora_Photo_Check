@@ -1,7 +1,9 @@
 const drop = document.querySelector("#drop");
 const fileInput = document.querySelector("#file");
 const browse = document.querySelector("#browse");
-const focusChecks = document.querySelector("#focus-checks");
+const manualChecks = document.querySelector("#manual-checks");
+const saveNameInput = document.querySelector("#save-name");
+const saveNamePreview = document.querySelector("#save-name-preview");
 const modelSelect = document.querySelector("#model");
 const queue = document.querySelector("#queue");
 const checkButton = document.querySelector("#check");
@@ -19,6 +21,8 @@ const referenceMeta = document.querySelector("#reference-meta");
 const referenceClear = document.querySelector("#reference-clear");
 
 const items = [];
+// Result cards currently on screen, so ticking the checklist can redraw their marks.
+const shown = new Map();
 let reference = null;
 let busy = false;
 
@@ -41,24 +45,9 @@ referenceDrop.addEventListener("drop", (event) => {
   if (file) setReference(file);
 });
 
-focusChecks.addEventListener("change", (event) => {
-  const input = event.target;
-  if (!(input instanceof HTMLInputElement) || input.type !== "checkbox") return;
-  const role = input.dataset.role;
-  if (role === "all") {
-    setAllChecks(input.checked);
-    return;
-  }
-  if (role === "group") {
-    setGroupChecks(input.dataset.group, input.checked);
-    syncAllCheck();
-    return;
-  }
-  if (role === "item") {
-    syncGroupCheck(input.dataset.group);
-    syncAllCheck();
-  }
-});
+Checklist.mount(manualChecks, scheduleMarkRefresh);
+saveNameInput.addEventListener("input", updateSaveNamePreview);
+updateSaveNamePreview();
 
 browse.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => addFiles(fileInput.files));
@@ -73,7 +62,7 @@ drop.addEventListener("drop", (event) => {
   addFiles(event.dataTransfer.files);
 });
 checkButton.addEventListener("click", runChecks);
-clearButton.addEventListener("click", clearAll);
+clearButton.addEventListener("click", onClear);
 
 loadSession();
 loadModels();
@@ -82,52 +71,19 @@ function isImage(file) {
   return ["image/png", "image/jpeg", "image/webp"].includes(file.type);
 }
 
-function checkboxes(selector) {
-  return [...focusChecks.querySelectorAll(selector)];
-}
-
-function setAllChecks(checked) {
-  for (const input of checkboxes('input[type="checkbox"]')) input.checked = checked;
-}
-
-function setGroupChecks(group, checked) {
-  for (const input of checkboxes(`input[data-group="${group}"]`)) input.checked = checked;
-}
-
-function syncGroupCheck(group) {
-  const items = checkboxes(`input[data-role="item"][data-group="${group}"]`);
-  const parent = focusChecks.querySelector(`input[data-role="group"][data-group="${group}"]`);
-  if (!parent || !items.length) return;
-  parent.checked = items.every((input) => input.checked);
-}
-
-function syncAllCheck() {
-  const all = focusChecks.querySelector('input[data-role="all"]');
-  const others = checkboxes('input[type="checkbox"]:not([data-role="all"])');
-  if (!all || !others.length) return;
-  all.checked = others.every((input) => input.checked);
-}
-
-function selectedFocusNote() {
-  const lines = [];
-  const bodyItems = checkboxes('input[data-role="item"][data-group="body"]:checked').map((input) => input.dataset.label);
-  const decoItems = checkboxes('input[data-role="item"][data-group="deco"]:checked').map((input) => input.dataset.label);
-  const bodyGroup = focusChecks.querySelector('input[data-role="group"][data-group="body"]');
-  const decoGroup = focusChecks.querySelector('input[data-role="group"][data-group="deco"]');
-  if (bodyGroup && bodyGroup.checked) {
-    lines.push("人体の構造を細かく確認する");
-  }
-  for (const label of bodyItems) lines.push(`・${label}`);
-  if (decoGroup && decoGroup.checked) {
-    lines.push("装飾のチェックを細かく確認する");
-  }
-  for (const label of decoItems) lines.push(`・${label}`);
-  if (!lines.length) return "";
-  return (
-    "次の項目を特に注意して確認する。問題があれば必ず指摘する。\n" +
-    lines.join("\n") +
-    "\n服の色や装飾のデザインの違いは差分、パースの崩れはレイアウトか差分として出す。"
-  );
+// The checklist is the reviewer's own, so ticking it never changes what the AI
+// looks at; it only re-draws the check marks on results already on screen.
+let markRefreshQueued = false;
+function scheduleMarkRefresh() {
+  if (markRefreshQueued) return;
+  markRefreshQueued = true;
+  // One redraw per burst (ticking a parent changes many boxes at once).
+  setTimeout(() => {
+    markRefreshQueued = false;
+    for (const entry of shown.values()) {
+      if (entry.view.state === "done") fillMedia(entry.media, entry.item, entry.view);
+    }
+  });
 }
 
 function setReference(file) {
@@ -202,9 +158,25 @@ function removeItem(id) {
   renderQueue();
 }
 
+// A result that is drawn on (findings or check marks) and has a save button, but
+// was not saved since it was last drawn, would be lost by clearing. Plain images
+// have nothing to save, so they never count.
+function hasUnsavedResult() {
+  for (const entry of shown.values()) {
+    if (entry.media._savable && !entry.media._saved) return true;
+  }
+  return false;
+}
+
+function onClear() {
+  if (hasUnsavedResult() && !window.confirm("確認画像が保存されてませんが、クリアしてよろしいですか？")) return;
+  clearAll();
+}
+
 function clearAll() {
   for (const item of items) URL.revokeObjectURL(item.url);
   items.splice(0);
+  shown.clear();
   results.replaceChildren(emptyState());
   renderQueue();
 }
@@ -216,6 +188,7 @@ async function runChecks() {
   const batch = items.slice();
   const compared = reference;
   results.replaceChildren();
+  shown.clear();
   for (const item of batch) {
     const card = renderCard(item, { state: "pending", reference: compared });
     results.append(card);
@@ -236,7 +209,6 @@ async function review(file, compared) {
   const request = {
     filename: file.name,
     mime: file.type,
-    note: selectedFocusNote(),
     model: modelSelect.value,
     data_base64: data,
   };
@@ -270,6 +242,7 @@ function renderCard(item, view, existing) {
   const media = document.createElement("div");
   fillMedia(media, item, view);
   body.append(media);
+  shown.set(item.id, { item, view, media });
 
   if (view.state === "pending") {
     const pending = document.createElement("p");
@@ -333,44 +306,97 @@ function renderCard(item, view, existing) {
 }
 
 // Pending, failed and clean results show the plain image(s). A result with
-// findings shows the image marked up in red, with the reference beside it.
+// findings, or with check marks from the checklist, shows the image drawn on:
+// red circles and notes for findings, green ticks for what was checked. The
+// reference sits beside it.
 function fillMedia(media, item, view) {
   const compared = view.reference;
-  const findings = view.state === "done" ? view.body.findings || [] : [];
-  media.replaceChildren();
-  if (!findings.length) {
+  const done = view.state === "done";
+  const findings = done ? view.body.findings || [] : [];
+  const marks = done ? Checklist.marksFor(view.body.regions) : { regions: [], whole: 0 };
+  const marked = findings.length > 0 || Checklist.hasMarks(marks);
+  // Each call supersedes any drawing still in flight for this card.
+  const token = (media._token = (media._token || 0) + 1);
+  // Drawing again (new marks) makes any earlier save out of date.
+  media._savable = marked;
+  media._saved = false;
+
+  if (!marked) {
+    media.replaceChildren();
     media.className = compared ? "result-media pair" : "result-media";
     media.append(shot(item.url, item.file.name, compared ? "確認画像" : ""));
     if (compared) media.append(shot(compared.url, compared.file.name, "参考画像"));
     return;
   }
 
-  media.className = "result-media redline";
-  const holder = document.createElement("div");
-  holder.className = "redline-holder";
-  holder.textContent = "赤入れ画像を作っています…";
-  media.append(holder);
-  if (compared) {
-    const figure = shot(compared.url, compared.file.name, "参考画像");
-    figure.classList.add("reference-shot");
-    media.append(figure);
+  // Keep the drawn image on screen while the new one is made, so ticking a box
+  // does not flash or move the page.
+  let holder = media.classList.contains("redline") ? media.querySelector(".redline-holder") : null;
+  if (!holder) {
+    media.replaceChildren();
+    media.className = "result-media redline";
+    holder = document.createElement("div");
+    holder.className = "redline-holder";
+    holder.textContent = "赤入れ画像を作っています…";
+    media.append(holder);
+    if (compared) {
+      const figure = shot(compared.url, compared.file.name, "参考画像");
+      figure.classList.add("reference-shot");
+      media.append(figure);
+    }
   }
 
-  renderRedline(item.url, findings)
+  renderRedline(item.url, findings, marks)
     .then((canvas) => {
+      if (media._token !== token) return;
+      const ticks = marks.regions.length + (marks.whole > 0 ? 1 : 0);
       canvas.className = "redline-canvas";
       canvas.setAttribute("role", "img");
-      canvas.setAttribute("aria-label", `${item.file.name} の赤入れ画像（指摘 ${findings.length} 件）`);
+      canvas.setAttribute("aria-label", `${item.file.name} の赤入れ画像（指摘 ${findings.length} 件、チェック ${ticks} 箇所）`);
       const save = document.createElement("button");
       save.type = "button";
       save.className = "button secondary save-redline";
       save.textContent = "赤入れ画像を保存";
-      save.addEventListener("click", () => downloadCanvas(canvas, `${baseName(item.file.name)}_赤入れ.png`));
+      save.addEventListener("click", () => {
+        downloadCanvas(canvas, saveFileName(item));
+        if (media._token === token) media._saved = true;
+      });
       holder.replaceChildren(canvas, save);
     })
     .catch(() => {
+      if (media._token !== token) return;
       holder.replaceChildren(shot(item.url, item.file.name, ""));
     });
+}
+
+// ファイル名_yyyymmddhhmmss.png. The name comes from the field above the
+// checklist; when it is empty the image's own name is used.
+function timestamp(date = new Date()) {
+  const two = (value) => String(value).padStart(2, "0");
+  return (
+    `${date.getFullYear()}${two(date.getMonth() + 1)}${two(date.getDate())}` +
+    `${two(date.getHours())}${two(date.getMinutes())}${two(date.getSeconds())}`
+  );
+}
+
+function cleanFileName(text) {
+  return String(text || "")
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "")
+    .trim()
+    .replace(/^\.+/, "")
+    .slice(0, 100);
+}
+
+function saveFileName(item) {
+  const name = cleanFileName(saveNameInput.value) || cleanFileName(baseName(item.file.name)) || "image";
+  return `${name}_${timestamp()}.png`;
+}
+
+function updateSaveNamePreview() {
+  const name = cleanFileName(saveNameInput.value);
+  saveNamePreview.textContent = name
+    ? `保存名の例: ${name}_${timestamp()}.png`
+    : "空のときは、画像のファイル名が使われます。保存名は ファイル名_年月日時分秒.png です。";
 }
 
 function baseName(name) {

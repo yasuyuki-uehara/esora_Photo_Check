@@ -2,6 +2,8 @@
 // a hand-drawn red circle on each problem, an arrow, and a red note in the margin.
 
 const RED = "#d8261c";
+const CHECK_GREEN = "#12894d";
+const CHECK_FONT_SIZE = 22;
 const NOTE_FONT = '"Klee", "Klee One", "Hannotate SC", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif';
 const IMAGE_WIDTH = 800;
 const NOTE_WIDTH = 330;
@@ -106,7 +108,94 @@ function stackColumn(notes, imageTop) {
   return floor - NOTE_GAP;
 }
 
-async function renderRedline(imageUrl, findings) {
+// A green tick in a ring: the reviewer's "I checked this" mark.
+function drawTick(ctx, cx, cy, r) {
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.lineWidth = Math.max(3, r * 0.16);
+  ctx.strokeStyle = CHECK_GREEN;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.5, cy + r * 0.02);
+  ctx.lineTo(cx - r * 0.12, cy + r * 0.42);
+  ctx.lineTo(cx + r * 0.55, cy - r * 0.4);
+  ctx.lineWidth = Math.max(4, r * 0.28);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawHaloText(ctx, text, x, y) {
+  ctx.save();
+  ctx.font = `700 ${CHECK_FONT_SIZE}px ${NOTE_FONT}`;
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "#ffffff";
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = CHECK_GREEN;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+// Check marks sit on the image: a dashed outline round each checked part with a
+// tick at its corner and its name, and a badge at the top-left for the items
+// about the whole picture.
+function drawChecks(ctx, marks, geometry) {
+  if (!marks) return;
+  const { left, top, width, height } = geometry;
+  ctx.save();
+  ctx.textBaseline = "alphabetic";
+  for (const region of marks.regions || []) {
+    const [x0, y0, x1, y1] = region.box;
+    const bx0 = left + x0 * width;
+    const by0 = top + y0 * height;
+    const bx1 = left + x1 * width;
+    const by1 = top + y1 * height;
+    ctx.save();
+    ctx.setLineDash([10, 6]);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = CHECK_GREEN;
+    ctx.strokeRect(bx0 - 3, by0 - 3, bx1 - bx0 + 6, by1 - by0 + 6);
+    ctx.restore();
+
+    const radius = Math.min(22, Math.max(14, Math.min(bx1 - bx0, by1 - by0) * 0.24));
+    const cx = Math.min(bx1, left + width - radius - 3);
+    const cy = Math.max(by0, top + radius + 3);
+    drawTick(ctx, cx, cy, radius);
+
+    if (region.label) {
+      ctx.font = `700 ${CHECK_FONT_SIZE}px ${NOTE_FONT}`;
+      const labelWidth = ctx.measureText(region.label).width;
+      const x = Math.min(Math.max(bx0, left + 4), left + width - labelWidth - 4);
+      const above = by0 - 10 > top + CHECK_FONT_SIZE;
+      drawHaloText(ctx, region.label, x, above ? by0 - 10 : Math.min(by1 + CHECK_FONT_SIZE + 6, top + height - 6));
+    }
+  }
+  if (marks.whole > 0) {
+    const text = `全体 ${marks.whole}項目`;
+    ctx.font = `700 ${CHECK_FONT_SIZE}px ${NOTE_FONT}`;
+    const textWidth = ctx.measureText(text).width;
+    const r = 17;
+    const x = left + 12;
+    const y = top + 12;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+    ctx.beginPath();
+    ctx.roundRect(x, y, r * 2 + textWidth + 26, r * 2 + 10, r + 5);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = CHECK_GREEN;
+    ctx.stroke();
+    drawTick(ctx, x + r + 6, y + r + 5, r);
+    ctx.fillStyle = CHECK_GREEN;
+    ctx.fillText(text, x + r * 2 + 16, y + r + 5 + CHECK_FONT_SIZE * 0.35);
+  }
+  ctx.restore();
+}
+
+async function renderRedline(imageUrl, findings, marks) {
   const image = await loadImage(imageUrl);
   const imageWidth = IMAGE_WIDTH;
   const imageHeight = Math.max(1, Math.round((image.naturalHeight * imageWidth) / image.naturalWidth));
@@ -163,6 +252,7 @@ async function renderRedline(imageUrl, findings) {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
   ctx.drawImage(image, leftMargin, imageTop, imageWidth, imageHeight);
+  drawChecks(ctx, marks, { left: leftMargin, top: imageTop, width: imageWidth, height: imageHeight });
 
   ctx.strokeStyle = RED;
   ctx.fillStyle = RED;
