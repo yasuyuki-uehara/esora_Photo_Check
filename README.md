@@ -12,7 +12,7 @@ Mac 専用です（画像の処理に macOS 標準の `sips` を使います）�
    （ダブルクリックだと「ゴミ箱に入れる」「完了」だけの警告になり、進めません）
 
 ※ 使うのはフォルダ直下の **`AICKtool.command`** だけです。  
-  `本体` フォルダの中のアプリは触らなくて大丈夫です。
+  `Contents` フォルダはプログラム本体です（普段は触らなくて大丈夫です）。
 
 初回は次のことが起きます。
 
@@ -60,24 +60,18 @@ Apple の有料署名・公証がないアプリでは、次の画面が出る�
 
 | 名前 | 役割 |
 | --- | --- |
-| `AICKtool.command` | **これを開く**（起動用） |
+| `AICKtool.command` | **これを開く**（起動用。アプリアイコン付き） |
 | `はじめに.txt` | 初回の開き方 |
-| `本体/AICKtool.app` | プログラム本体（普段は触らない） |
+| `Contents/` | プログラム本体（普段は触らない） |
 | `build/` | 開発用（入口バイナリのソース） |
 
 ## 仕組み
 
-プログラムはすべて `本体/AICKtool.app` の中（`Contents/Resources/app`）にあります。
+プログラムは `Contents/Resources/app` にあります。
 
-- `Contents/MacOS/AICKtool`: アプリの入口（署名付きの実行ファイル）
 - `Contents/Resources/launch.sh`: 必要なものを確認して、サーバーを起動し、ブラウザを開きます
 - `Contents/Resources/app/server.py`: `http://127.0.0.1:8765/` で動くローカルサーバー
 - `Contents/Resources/app/check_image.py`: esora の API に画像を送って、チェック結果を受け取ります
+- `Contents/Resources/AICKtool.icns`: `AICKtool.command` 用のアイコン
 
-開発のときは、`python3 本体/AICKtool.app/Contents/Resources/app/server.py` で直接起動できます。
-入口のバイナリを作り直すときは、次を実行します。
-
-```
-swiftc -O -o 本体/AICKtool.app/Contents/MacOS/AICKtool build/AICKtool.swift
-codesign --force --deep -s - 本体/AICKtool.app
-```
+開発のときは、`python3 Contents/Resources/app/server.py` で直接起動できます。
