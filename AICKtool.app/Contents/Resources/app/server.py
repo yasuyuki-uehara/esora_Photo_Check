@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import shutil
 import subprocess
 import tempfile
@@ -17,7 +18,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 HOST = "127.0.0.1"
-PORT = 8765
+PORT = int(os.environ.get("ESORA_CHECK_PORT") or 8765)
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 CHECK_SCRIPT = ROOT / "check_image.py"
@@ -292,7 +293,15 @@ def cli_error(completed: subprocess.CompletedProcess[str]) -> str:
 
 
 def main() -> None:
-    httpd = ThreadingHTTPServer((HOST, PORT), Handler)
+    try:
+        httpd = ThreadingHTTPServer((HOST, PORT), Handler)
+    except OSError as exc:
+        print(
+            f"ポート {PORT} を開けませんでした（{exc.strerror}）。"
+            "ほかのアプリが使っているか、このツールがすでに起動している可能性があります。",
+            flush=True,
+        )
+        raise SystemExit(1)
     print(f"Image check tool: http://{HOST}:{PORT}/", flush=True)
     try:
         httpd.serve_forever()

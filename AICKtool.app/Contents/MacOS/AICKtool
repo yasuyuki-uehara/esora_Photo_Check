@@ -1,0 +1,22 @@
+#!/bin/bash
+# AICKtool.app の入口。ターミナルで起動処理（Resources/launch.sh）を開く。
+#
+# 起動処理は、インストールの確認や、起動中の表示・終了の操作にターミナルを使う。
+# ここで作る一時的な .command は、このアプリ自身が作るファイルなので、
+# ダウンロードの警告は出ず、ターミナルの操作許可も要らない。
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="${AICKTOOL_LAUNCH_SCRIPT:-$HERE/../Resources/launch.sh}"
+
+TMP="$(mktemp "${TMPDIR:-/tmp}/AICKtool.XXXXXX")" || exit 1
+COMMAND_FILE="$TMP.command"
+mv "$TMP" "$COMMAND_FILE" || exit 1
+
+{
+  printf '#!/bin/bash\n'
+  printf 'rm -f "$0"\n'
+  printf 'exec /bin/bash %q\n' "$SCRIPT"
+} > "$COMMAND_FILE"
+chmod +x "$COMMAND_FILE"
+
+exec /usr/bin/open -a Terminal "$COMMAND_FILE"
