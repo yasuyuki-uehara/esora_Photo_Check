@@ -263,6 +263,41 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 .finding.medium .tag { color: var(--medium); }
 .finding.low .tag { color: var(--low); }
 .finding p { margin: 2px 0 0; }
+.finding-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 4px 0 2px;
+  font-size: 13px;
+}
+.finding-count { font-weight: 650; margin-right: auto; }
+.link-button {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  color: var(--accent, #2f6fed);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.finding-hint { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.finding-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.finding-pick input[type="checkbox"] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 3px 0 0;
+  cursor: pointer;
+}
+.finding-text { flex: 1; min-width: 0; }
+.finding.off { opacity: 0.5; }
+.finding.off .finding-text p { text-decoration: line-through; }
 .error-text { color: var(--high); }
 .warning-text { margin: 0 0 12px; color: var(--medium); font-size: 13px; }
 .ok { color: var(--ok); font-weight: 650; }

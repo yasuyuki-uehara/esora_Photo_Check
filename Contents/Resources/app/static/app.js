@@ -20,9 +20,9 @@ const referenceName = document.querySelector("#reference-name");
 const referenceMeta = document.querySelector("#reference-meta");
 const referenceClear = document.querySelector("#reference-clear");
 
-// Every finding is one red mark on the image. This many or more and the picture
-// is not worth patching.
-const REDO_THRESHOLD = 5;
+// Every ticked finding is one red mark on the image. This many or more and the
+// picture is not worth patching.
+const REDO_THRESHOLD = 10;
 const REDO_MESSAGE = "これはアカーーん！！作り直してください！！";
 
 const items = [];
@@ -271,39 +271,109 @@ function renderCard(item, view, existing) {
       body.append(warning);
     }
     const findings = view.body.findings || [];
-    if (findings.length >= REDO_THRESHOLD) {
-      const redo = document.createElement("div");
-      redo.className = "redo-banner";
-      redo.setAttribute("role", "alert");
-      const redoTitle = document.createElement("p");
-      redoTitle.className = "redo-title";
-      redoTitle.textContent = REDO_MESSAGE;
-      const redoCopy = document.createElement("p");
-      redoCopy.className = "redo-copy";
-      redoCopy.textContent = `赤入れが ${findings.length} 箇所あります。`;
-      redo.append(redoTitle, redoCopy);
-      body.append(redo);
-    }
+    // Every finding starts ticked. Un-ticking one hides its red mark on the
+    // image, and the saved image keeps only the ticked ones.
+    if (!(view.picked instanceof Set)) view.picked = new Set(findings.map((_, index) => index));
+
+    // The redo warning follows the ticked findings: REDO_THRESHOLD or more.
+    const redo = document.createElement("div");
+    redo.className = "redo-banner";
+    redo.setAttribute("role", "alert");
+    const redoTitle = document.createElement("p");
+    redoTitle.className = "redo-title";
+    redoTitle.textContent = REDO_MESSAGE;
+    const redoCopy = document.createElement("p");
+    redoCopy.className = "redo-copy";
+    redo.append(redoTitle, redoCopy);
+    const syncRedo = () => {
+      const marks = view.picked.size;
+      redo.hidden = marks < REDO_THRESHOLD;
+      redoCopy.textContent = `赤入れが ${marks} 箇所あります。`;
+    };
+    syncRedo();
+    body.append(redo);
+
     if (!findings.length) {
       const ok = document.createElement("p");
       ok.className = "ok";
       ok.textContent = "指摘はありません。";
       body.append(ok);
     } else {
+      const picked = view.picked;
+
+      const toolbar = document.createElement("div");
+      toolbar.className = "finding-toolbar";
+      const count = document.createElement("span");
+      count.className = "finding-count";
+      const allOn = document.createElement("button");
+      allOn.type = "button";
+      allOn.className = "link-button";
+      allOn.textContent = "すべてON";
+      const allOff = document.createElement("button");
+      allOff.type = "button";
+      allOff.className = "link-button";
+      allOff.textContent = "すべてOFF";
+      toolbar.append(count, allOn, allOff);
+      const hint = document.createElement("p");
+      hint.className = "finding-hint";
+      hint.textContent = "チェックを入れた指摘だけが、画像に赤入れされ、保存されます。";
+
       const list = document.createElement("ul");
       list.className = "findings";
-      for (const finding of findings) {
+      const boxes = [];
+      const syncCount = () => {
+        count.textContent = `赤入れ ${picked.size} / ${findings.length} 件`;
+      };
+      const apply = () => {
+        syncCount();
+        syncRedo();
+        // Redraw this card's image with the ticked findings only.
+        const entry = shown.get(item.id);
+        if (entry && entry.view === view) fillMedia(entry.media, entry.item, entry.view);
+      };
+
+      findings.forEach((finding, index) => {
         const row = document.createElement("li");
         row.className = `finding ${finding.severity || "low"}`;
+        const label = document.createElement("label");
+        label.className = "finding-pick";
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = picked.has(index);
+        box.addEventListener("change", () => {
+          if (box.checked) picked.add(index);
+          else picked.delete(index);
+          row.classList.toggle("off", !box.checked);
+          apply();
+        });
+        boxes.push({ box, row, index });
+        row.classList.toggle("off", !box.checked);
+        const text = document.createElement("div");
+        text.className = "finding-text";
         const tag = document.createElement("div");
         tag.className = "tag";
         tag.textContent = `${labelSeverity(finding.severity)} · ${finding.category || "指摘"} · ${finding.location || ""}`;
         const detail = document.createElement("p");
         detail.textContent = finding.detail || "";
-        row.append(tag, detail);
+        text.append(tag, detail);
+        label.append(box, text);
+        row.append(label);
         list.append(row);
-      }
-      body.append(list);
+      });
+
+      const setAll = (on) => {
+        picked.clear();
+        if (on) findings.forEach((_, index) => picked.add(index));
+        for (const entry of boxes) {
+          entry.box.checked = on;
+          entry.row.classList.toggle("off", !on);
+        }
+        apply();
+      };
+      allOn.addEventListener("click", () => setAll(true));
+      allOff.addEventListener("click", () => setAll(false));
+      syncCount();
+      body.append(toolbar, hint, list);
     }
   }
   card.append(body);
@@ -317,7 +387,13 @@ function renderCard(item, view, existing) {
 function fillMedia(media, item, view) {
   const compared = view.reference;
   const done = view.state === "done";
-  const findings = done ? view.body.findings || [] : [];
+  // Only the findings ticked in the list are drawn (all of them until the
+  // reviewer un-ticks some). Each keeps its own number for a stable look.
+  const allFindings = done ? view.body.findings || [] : [];
+  const picked = done && view.picked instanceof Set ? view.picked : null;
+  const findings = allFindings
+    .map((finding, index) => ({ ...finding, _index: index }))
+    .filter((finding) => !picked || picked.has(finding._index));
   const marks = done ? Checklist.marksFor(view.body.regions) : { regions: [], whole: 0 };
   const marked = findings.length > 0 || Checklist.hasMarks(marks);
   // Each call supersedes any drawing still in flight for this card.

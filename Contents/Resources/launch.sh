@@ -17,6 +17,19 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 say() { printf '%s\n' "$*"; }
 
+# このターミナルの窓を特定しておく（あとで Dock にしまうため）。
+# 背景で動く処理の中では tty が取れないので、先に控える。
+TTY_DEV="$(tty 2>/dev/null || true)"
+
+# 黒いウィンドウを Dock にしまう（最小化）。ブラウザを前に出したあとに呼ぶ。
+# 閉じていないので、サーバーは動いたまま。Dock の Terminal から戻せる。
+minimize_terminal() {
+  [ -n "${ESORA_CHECK_NO_MINIMIZE:-}" ] && return 0
+  [ "${TERM_PROGRAM:-}" = "Apple_Terminal" ] || return 0
+  case "$TTY_DEV" in /dev/*) ;; *) return 0 ;; esac
+  osascript -e "tell application \"Terminal\" to set miniaturized of (first window whose tty is \"$TTY_DEV\") to true" >/dev/null 2>&1 || true
+}
+
 stop_here() {
   say ""
   read -r -p "Enter キーを押すと、このウィンドウを閉じます。" _
@@ -32,6 +45,15 @@ ask() {
 open_browser() {
   [ -n "${ESORA_CHECK_NO_BROWSER:-}" ] && return 0
   open "$URL"
+}
+
+# 起動したあと用: ブラウザを開き、黒いウィンドウをしまう。
+open_browser_and_minimize() {
+  open_browser
+  [ -n "${ESORA_CHECK_NO_BROWSER:-}" ] && return 0
+  # ブラウザが前に出るのを待ってから、しまう。
+  sleep 1
+  minimize_terminal
 }
 
 say "=== AI生成画像基本チェック ==="
@@ -96,12 +118,13 @@ fi
 
 # 4. 起動。サーバーが応答したらブラウザを開く。
 say "起動します: $URL"
-say "（使い終わったら、このウィンドウを閉じるか Control + C で終了します）"
+say "（ブラウザが開くと、このウィンドウは Dock にしまわれます）"
+say "（使い終わったら、Dock の「ターミナル」からこのウィンドウを開いて閉じるか、Control + C で終了します）"
 say ""
 (
   for _ in $(seq 1 30); do
     if curl -fs -m 1 "${URL}api/status" >/dev/null 2>&1; then
-      open_browser
+      open_browser_and_minimize
       exit 0
     fi
     sleep 0.5

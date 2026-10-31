@@ -216,7 +216,8 @@ async function renderRedline(imageUrl, findings, marks) {
     }
     const lines = wrapText(measure, text, NOTE_WIDTH);
     const note = {
-      index,
+      // The finding's own number, so a circle keeps its look when others are hidden.
+      index: Number.isInteger(finding._index) ? finding._index : index,
       box,
       lines,
       width: Math.max(...lines.map((line) => measure.measureText(line).width)),

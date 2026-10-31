@@ -199,11 +199,16 @@ box は、そのものだけをぴったり囲む四角で、画像全体を 0�
 COMPARE_PROMPT = """
 1枚目が確認する画像、2枚目が正しい参考画像です。
 1枚目を2枚目と比べ、1枚目にだけある問題と、2枚目との違いを指摘してください。2枚目と同じ見た目は指摘しない。
+参考画像との比較で見るのは、絵柄（描かれているもの）の違いだけです。次の違いは、2枚の画像の作りや書き出しの違いにすぎないので、指摘しない。
+- 画像全体や要素の大きさ、サイズ、拡大・縮小、縦横比、解像度、画質（ぼけ・シャープさ・圧縮ノイズ）
+- 画像の切り取り範囲（トリミング）、余白の量、要素の位置や配置の全体的なずれ
+2枚の大きさや位置が違っても、同じ部位どうしを見比べて、絵柄の違いだけを探す。
 特に次も必ず見る。
 - 色: 髪、肌、服、靴、装飾、ライン、背景など、部位ごとに参考と並べて比べる。少しの色味の違い（赤みが強い、暗い、くすんでいる、彩度が違うなど）も指摘する。分かる範囲で色コード（例: #FF0000）も書く
 - 数: ボタン、紐、リボン、バッジ、アイコン、文字ブロックなど、数えられる要素の個数が違う場合は指摘する
 - 衣装: 靴の形や色、ベルトの有無、帽子・手袋・アクセサリー・服の細部など、衣装パーツの違いを指摘する
-色、数、衣装、要素の有無、文言、図柄の違いで、上の分類に当てはまらないものは category を「差分」にする。"""
+色、数、衣装、要素の有無、文言、図柄の違いで、上の分類に当てはまらないものは category を「差分」にする。
+「参考より大きい・小さい」「サイズが違う」だけの指摘は出さない。"""
 
 
 class _Quiet:
@@ -387,6 +392,8 @@ def check(image: Path, *, note: str, model: str, reference: Path | None = None) 
                     findings = union_findings(findings, extra_findings)
             except (GenerationTimeout, RuntimeError, ValueError, ApiError):
                 pass  # the first sweep alone is still a complete review
+        if reference is not None:
+            findings = drop_size_differences(findings)
 
         color_findings: list[dict[str, Any]] = []
         color_warning = ""
@@ -970,6 +977,39 @@ def same_finding(a: dict[str, Any], b: dict[str, Any]) -> bool:
     if a["category"] == b["category"] and box_overlap(a.get("box"), b.get("box")) >= 0.6 and similarity >= 0.3:
         return True
     return False
+
+
+# Findings that only say "bigger / smaller / different size than the reference".
+# A reference is often exported at another size, so size alone is not a defect;
+# only the artwork (colour, count, costume, pattern, wording) should be reported.
+_COMPARES_TO_REFERENCE = ("参考", "2枚目", "二枚目", "元画像", "元の画像", "お手本", "見本")
+_SIZE_WORDS = (
+    "サイズ", "大きさ", "大きい", "大きく", "小さい", "小さく", "縮尺", "拡大", "縮小",
+    "縦横比", "アスペクト", "解像度", "画角", "トリミング", "切り取り", "比率が違",
+)
+_ARTWORK_WORDS = (
+    "色", "#", "柄", "模様", "形", "個", "本数", "枚数", "数", "有無", "追加", "足りな", "欠け",
+    "文字", "文言", "誤字", "衣装", "髪型",
+)
+
+
+def is_size_only_difference(item: dict[str, Any]) -> bool:
+    """True for a comparison finding that is only about size/scale/crop, not artwork."""
+    detail = str(item.get("detail", ""))
+    text = f"{detail} {item.get('location', '')}"
+    # Only comparison findings: a "差分" item, or one that talks about the reference.
+    if item.get("category") != "差分" and not any(word in text for word in _COMPARES_TO_REFERENCE):
+        return False
+    if not any(word in text for word in _SIZE_WORDS):
+        return False
+    # Drop size words, then see whether anything about the artwork is left.
+    for word in _SIZE_WORDS + _COMPARES_TO_REFERENCE:
+        detail = detail.replace(word, "")
+    return not any(word in detail for word in _ARTWORK_WORDS)
+
+
+def drop_size_differences(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [item for item in findings if not is_size_only_difference(item)]
 
 
 def union_findings(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> list[dict[str, Any]]:
